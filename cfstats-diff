@@ -1,0 +1,80 @@
+#!/usr/bin/python
+#
+# Parses two cfstats outputs to calculate tables
+# with top 5 reads and writes during the interval
+
+# Greg Smith 2017
+# requesthunter
+
+# usage: ./cfstats-diff <cfstats-begin> <cfstats-end>
+
+import os
+import re
+import sys
+import json
+import yaml
+import csv
+import operator
+
+
+# some variables and dicts
+cfstatsA = sys.argv[1]
+cfstatsB = sys.argv[2]
+topn=int(sys.argv[3])
+
+info={}
+info['topn-reads']={}
+info['topn-writes']={}
+info['cfstats-start']={}
+info['cfstats-end']={}
+# overview = cluster_info.json
+
+# some functions
+
+def parse_cfstats(f,info):
+    ks=''
+    table=''
+
+    for line in open(f,'r'):
+        if re.search('Keyspace:',line):
+            ks=line[line.find(': ')+2:len(line)-1]
+            table=''
+            if ks not in info:
+                info[ks]={}
+        if re.search('Table:',line):
+            table=line[line.find(': ')+2:len(line)-1]
+            if table not in info[ks]:
+                info[ks][table]={}
+        if re.search('Table \(index\):',line):
+            table=line[line.find(': ')+2:len(line)-1]
+            if table not in info[ks]:
+                info[ks][table]={}
+        if table !='':
+            if re.search('Local read count:',line):
+                info[ks][table]['read_count']=int(line[line.find(': ')+2:len(line)-1])
+
+            if re.search('Local write count:',line):
+                info[ks][table]['write_count']=int(line[line.find(': ')+2:len(line)-1])
+    return 0
+
+
+# Parse the diagnostics
+
+#print "Parsing cfstats %s %s" % (cfstatsA, cfstatsB)
+parse_cfstats(cfstatsA,info['cfstats-start'])
+parse_cfstats(cfstatsB,info['cfstats-end'])
+
+for ks in info['cfstats-start']:
+    for table in info['cfstats-start'][ks]:
+        key="%s.%s" % (ks,table)
+        if (info['cfstats-end'][ks][table]['read_count']-info['cfstats-start'][ks][table]['read_count']) >0 :
+            info['topn-reads'][key]=info['cfstats-end'][ks][table]['read_count']-info['cfstats-start'][ks][table]['read_count']
+
+        if (info['cfstats-end'][ks][table]['write_count']-info['cfstats-start'][ks][table]['write_count']) >0 :
+            info['topn-writes'][key]=info['cfstats-end'][ks][table]['write_count']-info['cfstats-start'][ks][table]['write_count']
+
+for err in sorted(info['topn-reads'], key=info['topn-reads'].get, reverse=True)[:topn]:
+    print "%s  reads: %s" % (err, info['topn-reads'][err])
+
+for err in sorted(info['topn-writes'], key=info['topn-writes'].get, reverse=True)[:topn]:
+    print "%s  writes: %s" % (err, info['topn-writes'][err])

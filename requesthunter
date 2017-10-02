@@ -1,0 +1,29 @@
+#!/bin/bash
+# simple wrapper for the cfstats-diff tool
+# no arguments, script will run indefinitely
+#
+# Greg Smith 2017
+# requesthunter
+
+
+start=/tmp/cfstats.start
+end=/tmp/cfstats.end
+
+# time to pause in seconds between calling nodetool cfstats
+pause=120
+# Top N number of requests for reads and writes to display
+topn=5
+
+#gather an initial cfstats
+nodetool cfstats > $start
+
+while true
+do
+   sleep $pause
+   nodetool cfstats > $end
+   date
+   #Call cfstats-diff to generate the difference report
+   ./cfstats-diff $start $end $topn
+   cp $end $start
+
+done
