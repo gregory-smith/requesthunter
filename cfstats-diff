@@ -11,10 +11,6 @@
 import os
 import re
 import sys
-import json
-import yaml
-import csv
-import operator
 
 
 # some variables and dicts
